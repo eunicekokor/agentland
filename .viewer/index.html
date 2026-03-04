@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Agent Plans</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+    mermaid.initialize({
+      startOnLoad: false,
+      theme: prefersDark ? "dark" : "default",
+      securityLevel: "loose",
+      flowchart: { useMaxWidth: true, htmlLabels: true },
+      sequence: { useMaxWidth: true },
+    });
+
+    window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
+      mermaid.initialize({
+        startOnLoad: false,
+        theme: e.matches ? "dark" : "default",
+        securityLevel: "loose",
+      });
+      if (window._lastRenderedPlan) {
+        const p = window._lastRenderedPlan;
+        window.renderPlanContent(p.content, p.path, p.date, p.slug);
+      }
+    });
+
+    window.mermaidReady = true;
+    window.mermaidLib = mermaid;
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #fafafa;
+      --bg-sidebar: #f0f0f0;
+      --bg-card: #ffffff;
+      --bg-card-hover: #e8e8e8;
+      --bg-card-active: #dbeafe;
+      --text: #1a1a1a;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #111111;
+        --bg-sidebar: #1a1a1a;
+        --bg-card: #222222;
+        --bg-card-hover: #2a2a2a;
+        --bg-card-active: #1e3a5f;
+        --text: #e5e5e5;
+        --text-muted: #9ca3af;
+        --border: #333333;
+        --accent: #60a5fa;
+        --accent-hover: #3b82f6;
+        --shadow: 0 1px 3px rgba(0,0,0,0.3);
+      }
+    }
+
+    html, body { height: 100%; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 24px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-sidebar);
+      flex-shrink: 0;
+    }
+
+    header h1 {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .agent-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .agent-btn {
+      padding: 8px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .agent-btn:hover { background: var(--bg-card-hover); }
+    .agent-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    .agent-btn .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .agent-btn.cursor-btn .dot { background: #00b4d8; }
+    .agent-btn.claude-btn .dot { background: #d4a574; }
+    .agent-btn.codex-btn .dot { background: #10b981; }
+
+    .main {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+    }
+
+    .sidebar {
+      width: 320px;
+      min-width: 320px;
+      border-right: 1px solid var(--border);
+      background: var(--bg-sidebar);
+      overflow-y: auto;
+      padding: 16px;
+    }
+
+    .date-group { margin-bottom: 20px; }
+
+    .date-label {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+      padding-left: 4px;
+    }
+
+    .plan-card {
+      padding: 12px;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.15s ease;
+      margin-bottom: 4px;
+    }
+
+    .plan-card:hover { background: var(--bg-card-hover); }
+    .plan-card.active { background: var(--bg-card-active); }
+
+    .plan-card-title {
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1.4;
+      margin-bottom: 2px;
+    }
+
+    .plan-card-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .plan-card-time {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .plan-card-docs {
+      font-size: 11px;
+      color: var(--accent);
+      background: var(--bg-card);
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 32px 48px;
+      min-width: 0;
+    }
+
+    .empty-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      font-size: 15px;
+    }
+
+    .markdown-body {
+      max-width: 780px;
+      line-height: 1.7;
+    }
+
+    .markdown-body h1 { font-size: 28px; font-weight: 700; margin-bottom: 16px; letter-spacing: -0.02em; }
+    .markdown-body h2 { font-size: 20px; font-weight: 600; margin-top: 32px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
+    .markdown-body h3 { font-size: 16px; font-weight: 600; margin-top: 24px; margin-bottom: 8px; }
+    .markdown-body p { margin-bottom: 12px; }
+    .markdown-body ul, .markdown-body ol { margin-bottom: 12px; padding-left: 24px; }
+    .markdown-body li { margin-bottom: 4px; }
+    .markdown-body li input[type="checkbox"] { margin-right: 6px; }
+
+    .markdown-body code {
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      font-size: 0.9em;
+      background: var(--bg-card-hover);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .markdown-body pre {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      overflow-x: auto;
+      margin-bottom: 16px;
+    }
+
+    .markdown-body pre code {
+      background: none;
+      padding: 0;
+      font-size: 13px;
+    }
+
+    .markdown-body blockquote {
+      border-left: 3px solid var(--accent);
+      padding-left: 16px;
+      margin: 12px 0;
+      color: var(--text-muted);
+    }
+
+    .markdown-body aside {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin: 12px 0;
+    }
+
+    .markdown-body table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-bottom: 16px;
+    }
+
+    .markdown-body th, .markdown-body td {
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      text-align: left;
+    }
+
+    .markdown-body th {
+      background: var(--bg-sidebar);
+      font-weight: 600;
+    }
+
+    .markdown-body strong { font-weight: 600; }
+
+    .markdown-body img {
+      max-width: 100%;
+      border-radius: var(--radius);
+      margin: 8px 0;
+    }
+
+    /* Mermaid diagram rendering */
+    .mermaid-block {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin: 16px 0;
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      font-size: 13px;
+      white-space: pre;
+      overflow-x: auto;
+    }
+
+    .mermaid-rendered {
+      margin: 16px 0;
+      padding: 16px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow-x: auto;
+      text-align: center;
+    }
+
+    .mermaid-rendered svg {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .mermaid-error {
+      border-color: #ef4444;
+      color: #ef4444;
+    }
+
+    /* Docs section */
+    .docs-section {
+      max-width: 780px;
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .docs-section h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .docs-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 12px;
+    }
+
+    .doc-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      text-decoration: none;
+      color: var(--text);
+      transition: all 0.15s ease;
+    }
+
+    .doc-card:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent);
+    }
+
+    .doc-card.doc-image img {
+      max-width: 100%;
+      max-height: 160px;
+      object-fit: contain;
+      border-radius: 4px;
+      margin-bottom: 8px;
+    }
+
+    .doc-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+
+    .doc-name {
+      font-size: 12px;
+      font-weight: 500;
+      text-align: center;
+      word-break: break-all;
+    }
+
+    .doc-size {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      padding: 12px 20px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      font-size: 13px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: all 0.2s ease;
+      pointer-events: none;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .plan-path {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 24px;
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Agent Plans</h1>
+    <div class="agent-buttons">
+      <button class="agent-btn cursor-btn" disabled onclick="openWith('cursor')">
+        <span class="dot"></span> Open in Cursor
+      </button>
+      <button class="agent-btn claude-btn" disabled onclick="openWith('claude')">
+        <span class="dot"></span> Open in Claude
+      </button>
+      <button class="agent-btn codex-btn" disabled onclick="openWith('codex')">
+        <span class="dot"></span> Open in Codex
+      </button>
+    </div>
+  </header>
+  <div class="main">
+    <div class="sidebar" id="sidebar">
+      <div class="empty-state">Loading...</div>
+    </div>
+    <div class="content" id="content">
+      <div class="empty-state">Select a plan to view</div>
+    </div>
+  </div>
+  <div class="toast" id="toast"></div>
+
+  <script>
+    let selectedPlan = null;
+
+    function escapeHtml(str) {
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+    }
+
+    const renderer = new marked.Renderer();
+    const originalCodeRenderer = renderer.code.bind(renderer);
+    renderer.code = function ({ text, lang }) {
+      if (lang === "mermaid") {
+        return `<div class="mermaid-block">${text}</div>`;
+      }
+      return originalCodeRenderer({ text, lang });
+    };
+    marked.setOptions({ renderer, gfm: true, breaks: true });
+
+    function formatDate(dateStr) {
+      try {
+        const [y, m, d] = dateStr.split("-");
+        const date = new Date(y, m - 1, d);
+        return date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+      } catch {
+        return dateStr;
+      }
+    }
+
+    function formatTime(timeStr) {
+      if (!timeStr) return "";
+      const [h, m] = timeStr.split("-");
+      const hour = parseInt(h, 10);
+      const ampm = hour >= 12 ? "PM" : "AM";
+      const h12 = hour % 12 || 12;
+      return `${h12}:${m} ${ampm}`;
+    }
+
+    function showToast(msg) {
+      const el = document.getElementById("toast");
+      el.textContent = msg;
+      el.classList.add("show");
+      setTimeout(() => el.classList.remove("show"), 2500);
+    }
+
+    function setButtonsEnabled(enabled) {
+      document.querySelectorAll(".agent-btn").forEach(btn => btn.disabled = !enabled);
+    }
+
+    async function loadPlans() {
+      const resp = await fetch("/api/plans");
+      const plans = await resp.json();
+
+      const sidebar = document.getElementById("sidebar");
+
+      if (plans.length === 0) {
+        sidebar.innerHTML = '<div class="empty-state">No plans yet</div>';
+        return;
+      }
+
+      const grouped = {};
+      for (const p of plans) {
+        if (!grouped[p.date]) grouped[p.date] = [];
+        grouped[p.date].push(p);
+      }
+
+      let html = "";
+      for (const [date, items] of Object.entries(grouped)) {
+        html += `<div class="date-group">`;
+        html += `<div class="date-label">${formatDate(date)}</div>`;
+        for (const p of items) {
+          const docsTag = p.docs && p.docs.length > 0
+            ? `<span class="plan-card-docs">${p.docs.length} doc${p.docs.length > 1 ? "s" : ""}</span>`
+            : "";
+          html += `<div class="plan-card" data-date="${p.date}" data-slug="${p.slug}" data-path="${p.path}" onclick="selectPlan(this)">`;
+          html += `<div class="plan-card-title">${escapeHtml(p.title)}</div>`;
+          html += `<div class="plan-card-meta"><span class="plan-card-time">${formatTime(p.time)}</span>${docsTag}</div>`;
+          html += `</div>`;
+        }
+        html += `</div>`;
+      }
+
+      sidebar.innerHTML = html;
+    }
+
+    window._lastRenderedPlan = null;
+
+    async function renderMermaidBlocks() {
+      if (!window.mermaidReady) return;
+      const mermaidLib = window.mermaidLib;
+      const blocks = document.querySelectorAll(".mermaid-block");
+      for (const block of blocks) {
+        const id = "mermaid-" + Math.random().toString(36).slice(2, 10);
+        try {
+          const { svg } = await mermaidLib.render(id, block.textContent.trim());
+          const container = document.createElement("div");
+          container.className = "mermaid-rendered";
+          container.innerHTML = svg;
+          block.replaceWith(container);
+        } catch (err) {
+          block.classList.add("mermaid-error");
+          block.textContent = "Diagram error: " + err.message + "\n\n" + block.textContent;
+        }
+      }
+    }
+
+    async function renderPlanContent(content, path, date, slug) {
+      window._lastRenderedPlan = { content, path, date, slug };
+
+      const rendered = marked.parse(content, { gfm: true, breaks: true });
+      const contentEl = document.getElementById("content");
+
+      let docsHtml = "";
+      try {
+        const docsResp = await fetch(`/api/plans/${date}/${slug}/docs`);
+        const docs = await docsResp.json();
+        if (docs.length > 0) {
+          docsHtml = `<div class="docs-section"><h2>Attached Documents</h2><div class="docs-grid">`;
+          for (const doc of docs) {
+            const url = `/api/plans/${date}/${slug}/docs/${doc.name}`;
+            const isImage = doc.type && doc.type.startsWith("image/");
+            const isSvg = doc.name.endsWith(".svg");
+            if (isImage || isSvg) {
+              docsHtml += `<a class="doc-card doc-image" href="${url}" target="_blank"><img src="${url}" alt="${escapeHtml(doc.name)}" /><span class="doc-name">${escapeHtml(doc.name)}</span></a>`;
+            } else {
+              docsHtml += `<a class="doc-card" href="${url}" target="_blank"><span class="doc-icon">&#128196;</span><span class="doc-name">${escapeHtml(doc.name)}</span><span class="doc-size">${formatSize(doc.size)}</span></a>`;
+            }
+          }
+          docsHtml += `</div></div>`;
+        }
+      } catch {}
+
+      contentEl.innerHTML = `<div class="plan-path">${escapeHtml(path)}</div><div class="markdown-body">${rendered}</div>${docsHtml}`;
+      await renderMermaidBlocks();
+    }
+    window.renderPlanContent = renderPlanContent;
+
+    async function selectPlan(el) {
+      document.querySelectorAll(".plan-card.active").forEach(c => c.classList.remove("active"));
+      el.classList.add("active");
+
+      const date = el.dataset.date;
+      const slug = el.dataset.slug;
+      const path = el.dataset.path;
+
+      selectedPlan = { date, slug, path };
+      setButtonsEnabled(true);
+
+      const resp = await fetch(`/api/plans/${date}/${slug}`);
+      const data = await resp.json();
+
+      await renderPlanContent(data.content, path, date, slug);
+    }
+
+    async function openWith(agent) {
+      if (!selectedPlan) return;
+      const resp = await fetch("/api/open", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: selectedPlan.path, agent }),
+      });
+      const data = await resp.json();
+      showToast(data.message);
+    }
+
+    loadPlans();
+  </script>
+</body>
+</html>
