@@ -173,12 +173,26 @@
 
     .plan-card-meta {
       display: flex;
+      flex-direction: column;
+      gap: 3px;
+      margin-top: 4px;
+    }
+
+    .plan-card-meta-row {
+      display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
+    }
+
+    .plan-card-time-label {
+      font-size: 11px;
+      color: var(--text-muted);
+      opacity: 0.7;
+      min-width: 72px;
     }
 
     .plan-card-time {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--text-muted);
     }
 
@@ -527,6 +541,21 @@
       return `${h12}:${m} ${ampm}`;
     }
 
+    function formatUpdated(isoStr) {
+      if (!isoStr) return "";
+      const d = new Date(isoStr);
+      const now = new Date();
+      const diffMs = now - d;
+      const diffMin = Math.floor(diffMs / 60000);
+      const diffHr = Math.floor(diffMin / 60);
+      const diffDay = Math.floor(diffHr / 24);
+      if (diffMin < 1) return "just now";
+      if (diffMin < 60) return `${diffMin}m ago`;
+      if (diffHr < 24) return `${diffHr}h ago`;
+      if (diffDay < 7) return `${diffDay}d ago`;
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    }
+
     function showToast(msg) {
       const el = document.getElementById("toast");
       el.textContent = msg;
@@ -604,9 +633,14 @@
           const docsTag = p.docs && p.docs.length > 0
             ? `<span class="plan-card-docs">${p.docs.length} doc${p.docs.length > 1 ? "s" : ""}</span>`
             : "";
+          const startedTime = formatTime(p.time);
+          const updatedTime = formatUpdated(p.updated);
           html += `<div class="plan-card${isActive ? " active" : ""}" data-date="${p.date}" data-slug="${p.slug}" data-path="${p.path}" onclick="selectPlan(this)">`;
           html += `<div class="plan-card-title">${escapeHtml(p.title)}</div>`;
-          html += `<div class="plan-card-meta"><span class="plan-card-time">${formatTime(p.time)}</span>${docsTag}</div>`;
+          html += `<div class="plan-card-meta">`;
+          if (startedTime) html += `<div class="plan-card-meta-row"><span class="plan-card-time-label">Started</span><span class="plan-card-time">${startedTime}</span>${docsTag}</div>`;
+          if (updatedTime) html += `<div class="plan-card-meta-row"><span class="plan-card-time-label">Updated</span><span class="plan-card-time">${updatedTime}</span></div>`;
+          html += `</div>`;
           html += `</div>`;
         }
         html += `</div>`;
@@ -617,7 +651,7 @@
     async function loadPlans() {
       const resp = await fetch("/api/plans");
       const plans = await resp.json();
-      const hash = JSON.stringify(plans.map(p => p.slug + (p.docs||[]).length));
+      const hash = JSON.stringify(plans.map(p => p.slug + (p.docs||[]).length + (p.updated||"")));
 
       if (hash === lastPlanHash) return;
       lastPlanHash = hash;

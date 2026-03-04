@@ -9,6 +9,7 @@ import re
 import subprocess
 import sys
 import webbrowser
+from datetime import datetime, timezone
 from pathlib import Path
 from urllib.parse import unquote
 
@@ -58,6 +59,9 @@ def scan_plans():
                     if f.is_file() and f.suffix.lower() in SAFE_EXTENSIONS
                 ]
 
+            updated_ts = plan_file.stat().st_mtime
+            updated_iso = datetime.fromtimestamp(updated_ts, tz=timezone.utc).isoformat()
+
             plans.append(
                 {
                     "date": day_dir.name,
@@ -66,6 +70,7 @@ def scan_plans():
                     "title": title,
                     "path": str(plan_file),
                     "docs": doc_files,
+                    "updated": updated_iso,
                 }
             )
     return plans
