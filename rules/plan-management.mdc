@@ -1,5 +1,5 @@
 ---
-description: When creating, updating, or discussing implementation plans, technical plans, project plans, or work breakdowns — persist them to the shared agent-plans directory.
+description: When creating, updating, or discussing implementation plans, technical plans, project plans, or work breakdowns — persist them to the shared agent-plans directory. IMPORTANT - do NOT use .cursor/plans/ — always use ~/agent-plans/plans/.
 globs:
 alwaysApply: false
 ---
@@ -9,6 +9,8 @@ alwaysApply: false
 ## Purpose
 
 Persist every implementation/project plan to `~/agent-plans/plans/` so that any agent, in any workspace, can discover and build on prior planning work. Every plan MUST include visual diagrams so the work is immediately understandable at a glance.
+
+> **IMPORTANT:** Do NOT use Cursor's built-in `.cursor/plans/` directory. Always write plans to `~/agent-plans/plans/` so they are accessible across all workspaces and agents. The `~/agent-plans/plans/` directory is the single source of truth for all plans. Do NOT use the CreatePlan tool — write the `plan.md` file directly using the Write tool.
 
 ## When to Activate
 
