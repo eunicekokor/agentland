@@ -1,0 +1,226 @@
+---
+description: When creating, updating, or discussing implementation plans, technical plans, project plans, or work breakdowns — persist them to the shared agent-plans directory.
+globs:
+alwaysApply: false
+---
+
+# Plan Management Skill
+
+## Purpose
+
+Persist every implementation/project plan to `~/agent-plans/` so that any agent, in any workspace, can discover and build on prior planning work. Every plan MUST include visual diagrams so the work is immediately understandable at a glance.
+
+## When to Activate
+
+- You are asked to create a plan, tech spec, project breakdown, or work items
+- You are asked to update an existing plan
+- You produce a multi-step implementation strategy that would benefit from being saved
+- The user references a plan that should be stored
+
+## Directory Layout
+
+```
+~/agent-plans/
+└── YYYY-MM-DD/                          # one folder per calendar day
+    └── YYYY-MM-DD_HH-MM_<slug>/        # one folder per plan, slug = kebab-case title
+        ├── plan.md                      # the plan document (with embedded mermaid diagrams)
+        └── docs/                        # supplementary visuals: exported SVGs, screenshots, etc.
+            ├── architecture.svg
+            ├── sequence-flow.svg
+            └── ...
+```
+
+### Naming rules
+
+| Component | Format | Example |
+|-----------|--------|---------|
+| Day folder | `YYYY-MM-DD` | `2026-03-04` |
+| Plan folder | `YYYY-MM-DD_HH-MM_<slug>` | `2026-03-04_14-30_cost-config-cache` |
+| Slug | lowercase, hyphens, max 60 chars | `fix-load-more-pagination` |
+
+Use the current local date/time when creating a new plan. When updating an existing plan, keep its original folder name.
+
+## Creating a Plan
+
+1. **Determine the current date and time** by running `date '+%Y-%m-%d_%H-%M'`.
+2. **Create the day folder** if it doesn't exist: `mkdir -p ~/agent-plans/YYYY-MM-DD`.
+3. **Create the plan folder and docs/**: `mkdir -p ~/agent-plans/YYYY-MM-DD/YYYY-MM-DD_HH-MM_<slug>/docs`.
+4. **Write `plan.md`** using the template below, filling in as much as you can from context.
+5. **Generate the required diagrams** (see Diagram Requirements below) and embed them in plan.md as mermaid code blocks.
+6. **Optionally export visuals** to the `docs/` folder (SVG, PNG) for reference outside the viewer.
+7. **Report the path** back to the user so they know where to find it.
+
+## Updating a Plan
+
+1. **Find the existing plan** by searching `~/agent-plans/` for the plan title or slug.
+2. **Read the current plan.md**.
+3. **Update the relevant sections** — especially Work Items, Decisions/Change Log, and Metrics.
+4. **Update diagrams** if the architecture, flow, or work breakdown has changed.
+5. **Add a Change Log entry** with today's date describing what changed.
+6. **Write the updated plan.md** back.
+
+## Diagram Requirements (MANDATORY)
+
+Every plan MUST include at least these visual diagrams embedded as mermaid code blocks. These are not optional — the user is a visual learner and relies on diagrams to understand the work.
+
+### 1. System / Architecture Overview
+
+Show how the components involved in this plan relate to each other. Use a `flowchart` or `graph` diagram.
+
+```
+~~~mermaid
+flowchart TD
+    Client --> APIServer
+    APIServer --> Database
+    APIServer --> Cache
+~~~
+```
+
+### 2. Data / Request Flow
+
+Show the sequence of operations or data flow for the primary use case. Use a `sequenceDiagram`.
+
+```
+~~~mermaid
+sequenceDiagram
+    participant User
+    participant Frontend
+    participant API
+    participant DB
+    User->>Frontend: clicks submit
+    Frontend->>API: POST /resource
+    API->>DB: INSERT
+    DB-->>API: ok
+    API-->>Frontend: 201 Created
+~~~
+```
+
+### 3. Work Breakdown / Task Dependencies
+
+Show which work items depend on each other and the order of execution. Use a `gantt` or `flowchart`.
+
+```
+~~~mermaid
+flowchart LR
+    A[Schema changes] --> B[API endpoint]
+    B --> C[Frontend UI]
+    B --> D[Tests]
+    C --> E[Integration test]
+    D --> E
+~~~
+```
+
+### Additional diagrams (include when relevant)
+
+- **State diagram** — if the feature involves state transitions (e.g., task lifecycle, status changes)
+- **ER diagram** — if the plan involves database schema changes
+- **Class diagram** — if introducing new types/interfaces with relationships
+- **Pie chart** — for effort distribution across work items
+
+### Diagram guidelines
+
+- Use descriptive node labels, not abbreviations
+- Keep diagrams focused — one concept per diagram, split complex flows into multiple diagrams
+- Use subgraphs to group related components
+- Do NOT use explicit colors or styling — let the viewer theme handle it
+- Do NOT use spaces in node IDs (use camelCase or underscores)
+- Wrap edge labels containing special characters in quotes
+
+## Plan Template
+
+Every `plan.md` MUST use this structure. Fill in what you know; leave placeholders for unknowns.
+
+````markdown
+# <Plan Title>
+
+## Goal / North Star
+
+- [Primary goal/metric]
+- [Secondary goal/metric]
+
+## Non-Goals
+
+- [Items explicitly not addressed by this plan]
+
+## Scoping / Notes
+
+- [Date] Notes [Participants]
+
+## Ownership & Review
+
+**Author:** [Name]
+
+**Reviewers:**
+- [Name] ([what they're reviewing — e.g., UI implications, API design])
+
+**Approvers:**
+- [Self-approved / Product / Subpod lead / etc.]
+- [Escalation criteria if applicable]
+
+## Architecture / Visual Overview
+
+### System Overview
+
+```mermaid
+flowchart TD
+    subgraph overview [System Context]
+        ComponentA --> ComponentB
+        ComponentB --> ComponentC
+    end
+```
+
+### Data / Request Flow
+
+```mermaid
+sequenceDiagram
+    participant Actor1
+    participant Actor2
+    Actor1->>Actor2: action
+    Actor2-->>Actor1: response
+```
+
+### Work Breakdown
+
+```mermaid
+flowchart LR
+    Task1[Task 1 title] --> Task2[Task 2 title]
+    Task2 --> Task3[Task 3 title]
+```
+
+## Technical Approach
+
+- *High-level approach — e.g., frontend-only, new API endpoint, refactor existing X*
+- *Key technical decisions or patterns being used*
+- *Dependencies or constraints*
+- *Reference to similar work if applicable*
+
+## Work Items / Living Backlog
+
+- [ ] #[ticket] - [description] ([effort estimate]) - [context/rationale]
+- [ ] #[ticket] - [description] ([effort estimate])
+- [x] #[ticket] - [description] - [shipped date]
+
+## Decisions / Learnings / Change Log / Risks
+
+- **[Date]:** [Decision made] - [rationale]
+- **[Date]:** [Learning/insight] - [implication]
+- **[Date]:** [Change made] - [implication/impact on timelines]
+- **[Date]:** [Risk] → [mitigation strategy]
+
+## Metrics / Success Criteria / Observability
+
+- [How you're measuring success]
+- [Target metric or outcome]
+- [Review cadence]
+````
+
+## Guidelines
+
+- **Always create the plan file on disk.** Do not just show the plan in chat — write it to `~/agent-plans/`.
+- **Always include diagrams.** Every plan must have at least the three required diagrams (architecture, flow, work breakdown). If you truly cannot determine the architecture, use your best understanding and mark nodes with `[TBD]`.
+- **Populate what you can.** If the user hasn't specified reviewers or metrics, leave the placeholders but still create the file.
+- **Keep Work Items current.** When tasks are completed during a session, check them off (`[x]`) and add the date.
+- **Add Change Log entries** every time you modify the plan, with the current date.
+- **Link back to source.** If the plan originated from a GitHub issue, PR, or Slack thread, include the URL in Scoping/Notes.
+- **Don't duplicate plans.** Before creating a new plan, check `~/agent-plans/` for an existing plan with a similar slug. If one exists, update it instead.
+- **Use the docs/ folder** for any supplementary visuals — exported diagram images, screenshots, whiteboard photos, reference architecture PNGs, etc. Reference them from plan.md with relative paths: `![description](docs/filename.svg)`.
