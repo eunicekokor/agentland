@@ -12,8 +12,9 @@ import webbrowser
 from pathlib import Path
 from urllib.parse import unquote
 
-PLANS_DIR = Path.home() / "agent-plans"
-VIEWER_DIR = PLANS_DIR / ".viewer"
+REPO_DIR = Path.home() / "agent-plans"
+PLANS_DIR = REPO_DIR / "plans"
+VIEWER_DIR = REPO_DIR / "apps" / "plan-viewer"
 PORT = 8787
 
 SAFE_EXTENSIONS = {

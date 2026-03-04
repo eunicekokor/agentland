@@ -5,7 +5,7 @@ Local web UI for browsing, reading, and launching plans stored in `~/agent-plans
 ## Quick Start
 
 ```bash
-python3 ~/agent-plans/.viewer/server.py
+python3 ~/agent-plans/apps/plan-viewer/server.py
 ```
 
 Opens `http://localhost:8787` in your default browser. No dependencies — uses Python stdlib only.
@@ -13,7 +13,7 @@ Opens `http://localhost:8787` in your default browser. No dependencies — uses 
 To use a different port:
 
 ```bash
-python3 ~/agent-plans/.viewer/server.py 9000
+python3 ~/agent-plans/apps/plan-viewer/server.py 9000
 ```
 
 ## What It Does
@@ -33,16 +33,16 @@ The viewer expects plans organized like this:
 
 ```
 ~/agent-plans/
-├── .viewer/              # this viewer (server + UI)
+├── apps/plan-viewer/     # this viewer (server + UI)
 │   ├── server.py
 │   ├── index.html
 │   └── README.md
-├── 2026-03-04/           # day folder
-│   └── 2026-03-04_14-30_my-feature/
-│       ├── plan.md       # the plan (with mermaid diagrams)
-│       └── docs/         # optional attachments (SVGs, screenshots, etc.)
-└── 2026-03-05/
-    └── ...
+├── plans/                # plan data (gitignored)
+│   └── 2026-03-04/
+│       └── 2026-03-04_14-30_my-feature/
+│           ├── plan.md   # the plan (with mermaid diagrams)
+│           └── docs/     # optional attachments (SVGs, screenshots, etc.)
+└── ...
 ```
 
 Plans are created automatically by the plan-management Cursor rule when you ask an agent to create a plan.

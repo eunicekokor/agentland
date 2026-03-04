@@ -6,53 +6,81 @@ A collection of small, zero-dependency tools I build with AI agents to improve m
 
 ## Apps
 
-| App | Description | Status |
-|-----|-------------|--------|
-| [Plan Viewer](.viewer/) | Local web UI for browsing, reading, and launching implementation plans. Renders mermaid diagrams, serves attached docs, and opens plans directly in Cursor/Claude/Codex. | Active |
+| App | Description | Stack | Status |
+|-----|-------------|-------|--------|
+| [Plan Viewer](apps/plan-viewer/) | Browse, read, and launch implementation plans. Renders mermaid diagrams inline, serves attached docs, opens plans in Cursor/Claude/Codex. | Python stdlib | Active |
+
+## Rules
+
+Cursor rules and agent prompts that can be copied into any workspace.
+
+| Rule | Description |
+|------|-------------|
+| [plan-management](rules/plan-management.mdc) | Auto-persist plans to `~/agent-plans/plans/` with mandatory mermaid diagrams (architecture, data flow, work breakdown). |
 
 ## Setup
+
+### 1. Clone
 
 ```bash
 git clone https://github.com/eunicekokor/agentland.git ~/agent-plans
 ```
 
-This clones the repo directly into `~/agent-plans/`, which is the directory all tools expect. Plan data (day folders like `2026-03-04/`) is gitignored — only the tooling is tracked.
+This clones the repo into `~/agent-plans/`. All tools expect this path. Plan data lives in `plans/` (gitignored) — only tooling is tracked.
 
-### Plan Viewer
+### 2. Run the Plan Viewer
 
 ```bash
-python3 ~/agent-plans/.viewer/server.py
+python3 ~/agent-plans/apps/plan-viewer/server.py
 ```
 
-Opens a local web UI at `http://localhost:8787`. Zero dependencies — Python 3.10+ only.
+Opens `http://localhost:8787`. Python 3.10+ required, zero pip dependencies.
 
-See [.viewer/README.md](.viewer/README.md) for full docs and API reference.
-
-### Plan Management (Cursor rule)
-
-To have agents automatically create and update plans in `~/agent-plans/`, copy the Cursor rule into any workspace:
+### 3. Install a rule into a workspace
 
 ```bash
 mkdir -p <your-workspace>/.cursor/rules
-cp plan-management.mdc <your-workspace>/.cursor/rules/
+cp ~/agent-plans/rules/plan-management.mdc <your-workspace>/.cursor/rules/
 ```
 
-This rule instructs agents to persist plans with mandatory mermaid diagrams (architecture, data flow, work breakdown) whenever you ask them to create a plan or tech spec. Plans are organized by day and timestamped.
+## Adding new apps or rules
 
-## How It Works
+**New app:** create a folder under `apps/` and add a row to the Apps table above.
 
 ```
-~/agent-plans/                    # this repo
-├── .viewer/                      # Plan Viewer app
-│   ├── server.py                 # Python stdlib HTTP server
-│   ├── index.html                # SPA with mermaid rendering
-│   └── README.md
-├── plan-management.mdc           # Cursor rule for auto-creating plans
-├── 2026-03-04/                   # (gitignored) day folder
-│   └── 2026-03-04_14-30_slug/
-│       ├── plan.md               # plan with embedded mermaid diagrams
-│       └── docs/                 # supplementary visuals
-└── ...
+apps/
+├── plan-viewer/
+└── your-new-app/
+    ├── ...
+    └── README.md
+```
+
+**New rule:** drop a `.mdc` file into `rules/` and add a row to the Rules table above.
+
+```
+rules/
+├── plan-management.mdc
+└── your-new-rule.mdc
+```
+
+## Repo Structure
+
+```
+~/agent-plans/
+├── apps/                         # standalone tools
+│   └── plan-viewer/
+│       ├── server.py             # Python stdlib HTTP server
+│       ├── index.html            # SPA with mermaid rendering
+│       └── README.md
+├── rules/                        # Cursor rules / agent prompts
+│   └── plan-management.mdc
+├── plans/                        # (gitignored) plan data
+│   └── 2026-03-04/
+│       └── 2026-03-04_14-30_slug/
+│           ├── plan.md
+│           └── docs/
+├── README.md
+└── LICENSE
 ```
 
 ## Requirements
@@ -60,12 +88,10 @@ This rule instructs agents to persist plans with mandatory mermaid diagrams (arc
 - Python 3.10+
 - Internet connection (loads [marked.js](https://github.com/markedjs/marked) and [mermaid.js](https://github.com/mermaid-js/mermaid) from CDN)
 
-### Platform-specific agent launching
+### Platform support for agent launching
 
 | Platform | Cursor | Claude / Codex |
 |----------|--------|----------------|
 | macOS | `cursor` CLI | `pbcopy` + `open` URL |
-| Linux | `cursor` CLI | `xclip` + `xdg-open` URL (not yet implemented) |
-| Windows | `cursor` CLI | `clip` + `start` URL (not yet implemented) |
-
-Currently macOS only for clipboard + browser. PRs welcome for Linux/Windows support.
+| Linux | `cursor` CLI | `xclip` + `xdg-open` (not yet) |
+| Windows | `cursor` CLI | `clip` + `start` (not yet) |

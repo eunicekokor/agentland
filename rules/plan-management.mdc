@@ -8,7 +8,7 @@ alwaysApply: false
 
 ## Purpose
 
-Persist every implementation/project plan to `~/agent-plans/` so that any agent, in any workspace, can discover and build on prior planning work. Every plan MUST include visual diagrams so the work is immediately understandable at a glance.
+Persist every implementation/project plan to `~/agent-plans/plans/` so that any agent, in any workspace, can discover and build on prior planning work. Every plan MUST include visual diagrams so the work is immediately understandable at a glance.
 
 ## When to Activate
 
@@ -20,7 +20,7 @@ Persist every implementation/project plan to `~/agent-plans/` so that any agent,
 ## Directory Layout
 
 ```
-~/agent-plans/
+~/agent-plans/plans/
 └── YYYY-MM-DD/                          # one folder per calendar day
     └── YYYY-MM-DD_HH-MM_<slug>/        # one folder per plan, slug = kebab-case title
         ├── plan.md                      # the plan document (with embedded mermaid diagrams)
@@ -43,8 +43,8 @@ Use the current local date/time when creating a new plan. When updating an exist
 ## Creating a Plan
 
 1. **Determine the current date and time** by running `date '+%Y-%m-%d_%H-%M'`.
-2. **Create the day folder** if it doesn't exist: `mkdir -p ~/agent-plans/YYYY-MM-DD`.
-3. **Create the plan folder and docs/**: `mkdir -p ~/agent-plans/YYYY-MM-DD/YYYY-MM-DD_HH-MM_<slug>/docs`.
+2. **Create the day folder** if it doesn't exist: `mkdir -p ~/agent-plans/plans/YYYY-MM-DD`.
+3. **Create the plan folder and docs/**: `mkdir -p ~/agent-plans/plans/YYYY-MM-DD/YYYY-MM-DD_HH-MM_<slug>/docs`.
 4. **Write `plan.md`** using the template below, filling in as much as you can from context.
 5. **Generate the required diagrams** (see Diagram Requirements below) and embed them in plan.md as mermaid code blocks.
 6. **Optionally export visuals** to the `docs/` folder (SVG, PNG) for reference outside the viewer.
@@ -52,7 +52,7 @@ Use the current local date/time when creating a new plan. When updating an exist
 
 ## Updating a Plan
 
-1. **Find the existing plan** by searching `~/agent-plans/` for the plan title or slug.
+1. **Find the existing plan** by searching `~/agent-plans/plans/` for the plan title or slug.
 2. **Read the current plan.md**.
 3. **Update the relevant sections** — especially Work Items, Decisions/Change Log, and Metrics.
 4. **Update diagrams** if the architecture, flow, or work breakdown has changed.
@@ -216,11 +216,11 @@ flowchart LR
 
 ## Guidelines
 
-- **Always create the plan file on disk.** Do not just show the plan in chat — write it to `~/agent-plans/`.
+- **Always create the plan file on disk.** Do not just show the plan in chat — write it to `~/agent-plans/plans/`.
 - **Always include diagrams.** Every plan must have at least the three required diagrams (architecture, flow, work breakdown). If you truly cannot determine the architecture, use your best understanding and mark nodes with `[TBD]`.
 - **Populate what you can.** If the user hasn't specified reviewers or metrics, leave the placeholders but still create the file.
 - **Keep Work Items current.** When tasks are completed during a session, check them off (`[x]`) and add the date.
 - **Add Change Log entries** every time you modify the plan, with the current date.
 - **Link back to source.** If the plan originated from a GitHub issue, PR, or Slack thread, include the URL in Scoping/Notes.
-- **Don't duplicate plans.** Before creating a new plan, check `~/agent-plans/` for an existing plan with a similar slug. If one exists, update it instead.
+- **Don't duplicate plans.** Before creating a new plan, check `~/agent-plans/plans/` for an existing plan with a similar slug. If one exists, update it instead.
 - **Use the docs/ folder** for any supplementary visuals — exported diagram images, screenshots, whiteboard photos, reference architecture PNGs, etc. Reference them from plan.md with relative paths: `![description](docs/filename.svg)`.
