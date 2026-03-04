@@ -403,9 +403,58 @@
     .plan-path {
       font-size: 12px;
       color: var(--text-muted);
-      margin-bottom: 24px;
+      margin-bottom: 12px;
       font-family: "SF Mono", "Fira Code", "Consolas", monospace;
     }
+
+    .plan-toolbar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+
+    .tool-btn {
+      padding: 6px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .tool-btn:hover { background: var(--bg-card-hover); }
+
+    .tool-btn.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .tool-btn.active:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+    .plan-editor {
+      width: 100%;
+      max-width: 780px;
+      min-height: 60vh;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      color: var(--text);
+      font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      resize: vertical;
+      outline: none;
+    }
+
+    .plan-editor:focus { border-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -435,6 +484,7 @@
 
   <script>
     let selectedPlan = null;
+    let editMode = false;
 
     function escapeHtml(str) {
       const div = document.createElement("div");
@@ -486,6 +536,51 @@
 
     function setButtonsEnabled(enabled) {
       document.querySelectorAll(".agent-btn").forEach(btn => btn.disabled = !enabled);
+    }
+
+    function copyMarkdown() {
+      if (!window._lastRenderedPlan) return;
+      const text = window._lastRenderedPlan.content;
+      navigator.clipboard.writeText(text)
+        .then(() => showToast("Copied markdown to clipboard"))
+        .catch(() => {
+          const ta = document.createElement("textarea");
+          ta.value = text;
+          ta.style.position = "fixed";
+          ta.style.opacity = "0";
+          document.body.appendChild(ta);
+          ta.select();
+          document.execCommand("copy");
+          document.body.removeChild(ta);
+          showToast("Copied markdown to clipboard");
+        });
+    }
+
+    function toggleEditMode() {
+      editMode = !editMode;
+      const p = window._lastRenderedPlan;
+      if (p) renderPlanContent(p.content, p.path, p.date, p.slug);
+    }
+
+    async function savePlan() {
+      if (!window._lastRenderedPlan) return;
+      const { date, slug, path } = window._lastRenderedPlan;
+      const textarea = document.getElementById("plan-editor");
+      if (!textarea) return;
+      const newContent = textarea.value;
+      const resp = await fetch(`/api/plans/${date}/${slug}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: newContent }),
+      });
+      const data = await resp.json();
+      if (data.ok) {
+        editMode = false;
+        await renderPlanContent(newContent, path, date, slug);
+        showToast("Plan saved");
+      } else {
+        showToast("Error saving: " + (data.error || "unknown error"));
+      }
     }
 
     let lastPlanHash = "";
@@ -551,11 +646,29 @@
       }
     }
 
+    function planToolbarHtml() {
+      const copyIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M10 1H2a1 1 0 0 0-1 1v10h1V2h8V1zm3 2H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1zm0 12H5V4h8v11z"/></svg>`;
+      const editIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M13.23 1a1 1 0 0 0-.7.29L11 2.83 13.17 5l1.54-1.54a1 1 0 0 0 0-1.41L13.94 1.3A1 1 0 0 0 13.23 1zm-2.83 2.41L2 11.83V14h2.17l8.4-8.4L10.4 3.41zM1 15v-3.41L11.59 1 15 4.41 4.41 15H1z"/></svg>`;
+      const viewIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3C4 3 1 8 1 8s3 5 7 5 7-5 7-5-3-5-7-5zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0-5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>`;
+      return `<div class="plan-toolbar">
+        <button class="tool-btn" onclick="copyMarkdown()" title="Copy as markdown">${copyIcon} Copy Markdown</button>
+        <button class="tool-btn${editMode ? " active" : ""}" onclick="toggleEditMode()" title="${editMode ? "Switch to view" : "Switch to edit"}">${editMode ? viewIcon + " View" : editIcon + " Edit"}</button>
+        ${editMode ? `<button class="tool-btn" onclick="savePlan()" title="Save changes" style="margin-left:auto">Save</button>` : ""}
+      </div>`;
+    }
+
     async function renderPlanContent(content, path, date, slug) {
       window._lastRenderedPlan = { content, path, date, slug };
 
-      const rendered = marked.parse(content, { gfm: true, breaks: true });
       const contentEl = document.getElementById("content");
+      const header = `<div class="plan-path">${escapeHtml(path)}</div>${planToolbarHtml()}`;
+
+      if (editMode) {
+        contentEl.innerHTML = `${header}<textarea id="plan-editor" class="plan-editor">${escapeHtml(content)}</textarea>`;
+        return;
+      }
+
+      const rendered = marked.parse(content, { gfm: true, breaks: true });
 
       let docsHtml = "";
       try {
@@ -577,7 +690,7 @@
         }
       } catch {}
 
-      contentEl.innerHTML = `<div class="plan-path">${escapeHtml(path)}</div><div class="markdown-body">${rendered}</div>${docsHtml}`;
+      contentEl.innerHTML = `${header}<div class="markdown-body">${rendered}</div>${docsHtml}`;
       await renderMermaidBlocks();
     }
     window.renderPlanContent = renderPlanContent;
@@ -591,6 +704,7 @@
       const path = el.dataset.path;
 
       selectedPlan = { date, slug, path };
+      editMode = false;
       setButtonsEnabled(true);
 
       const resp = await fetch(`/api/plans/${date}/${slug}`);
