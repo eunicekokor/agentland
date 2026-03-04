@@ -570,19 +570,32 @@
     function copyMarkdown() {
       if (!window._lastRenderedPlan) return;
       const text = window._lastRenderedPlan.content;
-      navigator.clipboard.writeText(text)
-        .then(() => showToast("Copied markdown to clipboard"))
-        .catch(() => {
-          const ta = document.createElement("textarea");
-          ta.value = text;
-          ta.style.position = "fixed";
-          ta.style.opacity = "0";
-          document.body.appendChild(ta);
-          ta.select();
+
+      function fallback() {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        ta.style.top = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try {
           document.execCommand("copy");
-          document.body.removeChild(ta);
           showToast("Copied markdown to clipboard");
-        });
+        } catch {
+          showToast("Copy failed — please copy manually");
+        }
+        document.body.removeChild(ta);
+      }
+
+      if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+        navigator.clipboard.writeText(text)
+          .then(() => showToast("Copied markdown to clipboard"))
+          .catch(fallback);
+      } else {
+        fallback();
+      }
     }
 
     function toggleEditMode() {
