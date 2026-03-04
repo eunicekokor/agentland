@@ -15,7 +15,7 @@ from urllib.parse import unquote
 
 REPO_DIR = Path.home() / "agent-plans"
 PLANS_DIR = REPO_DIR / "plans"
-VIEWER_DIR = REPO_DIR / "apps" / "plan-viewer"
+VIEWER_DIR = Path(__file__).resolve().parent
 PORT = 8787
 
 SAFE_EXTENSIONS = {
