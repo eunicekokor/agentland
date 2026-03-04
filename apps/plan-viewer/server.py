@@ -78,6 +78,17 @@ def read_plan(date: str, slug: str) -> str | None:
     return plan_file.read_text()
 
 
+def write_plan(date: str, slug: str, content: str) -> dict:
+    plan_file = PLANS_DIR / date / slug / "plan.md"
+    if not plan_file.exists():
+        return {"ok": False, "error": "Plan not found"}
+    try:
+        plan_file.write_text(content)
+        return {"ok": True}
+    except OSError as e:
+        return {"ok": False, "error": str(e)}
+
+
 def list_docs(date: str, slug: str) -> list[dict]:
     docs_dir = PLANS_DIR / date / slug / "docs"
     if not docs_dir.is_dir():
@@ -202,6 +213,20 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 self.send_error(404)
             else:
                 self._file_response(*result)
+            return
+
+        self.send_error(404)
+
+    def do_PUT(self):
+        path = unquote(self.path)
+
+        # PUT /api/plans/<date>/<slug> — save plan content
+        m = re.match(r"^/api/plans/([^/]+)/([^/]+)$", path)
+        if m:
+            length = int(self.headers.get("Content-Length", 0))
+            body = json.loads(self.rfile.read(length))
+            result = write_plan(m.group(1), m.group(2), body.get("content", ""))
+            self._json_response(result)
             return
 
         self.send_error(404)
