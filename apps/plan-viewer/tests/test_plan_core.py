@@ -85,6 +85,35 @@ class PlanCoreTests(unittest.TestCase):
             else:
                 os.environ["PLAN_VIEWER_PLANS_DIR"] = prev
 
+    def test_resolve_plans_dir_defaults_to_repo_local(self) -> None:
+        prev = os.environ.get("PLAN_VIEWER_PLANS_DIR")
+        try:
+            os.environ.pop("PLAN_VIEWER_PLANS_DIR", None)
+            self.assertEqual(plan_core.resolve_plans_dir(None), plan_core.DEFAULT_PLANS_DIR)
+        finally:
+            if prev is not None:
+                os.environ["PLAN_VIEWER_PLANS_DIR"] = prev
+
+    def test_create_plan_and_auto_sync_on_write(self) -> None:
+        mirror = Path(self.tempdir.name) / "mirror"
+        prev_mirror = os.environ.get("PLAN_VIEWER_MIRROR_DIR")
+        try:
+            os.environ["PLAN_VIEWER_MIRROR_DIR"] = str(mirror)
+            date, slug, plan_file = plan_core.create_plan(self.plans_dir, "My Plan")
+            self.assertTrue(plan_file.exists())
+
+            result = plan_core.write_plan(self.plans_dir, date, slug, "# Updated\n")
+            self.assertTrue(result["ok"])
+
+            mirrored = mirror / date / slug / "plan.md"
+            self.assertTrue(mirrored.exists())
+            self.assertIn("Updated", mirrored.read_text(encoding="utf-8"))
+        finally:
+            if prev_mirror is None:
+                os.environ.pop("PLAN_VIEWER_MIRROR_DIR", None)
+            else:
+                os.environ["PLAN_VIEWER_MIRROR_DIR"] = prev_mirror
+
 
 if __name__ == "__main__":
     unittest.main()

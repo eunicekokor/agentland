@@ -9,6 +9,8 @@ import json
 import os
 import re
 import shlex
+import shutil
+import subprocess
 import sys
 import time
 import webbrowser
@@ -17,15 +19,18 @@ from pathlib import Path
 from urllib.parse import unquote
 
 from plan_core import (
+    create_plan,
     list_docs,
     list_plan_files,
     open_with_agent,
     read_plan,
+    resolve_mirror_dir,
     resolve_plan_ref,
     resolve_plans_dir,
     scan_plans,
     serve_doc_file,
     serve_plan_file,
+    sync_plan_dir,
     write_plan,
 )
 
@@ -173,13 +178,15 @@ def cmd_open(args: argparse.Namespace) -> int:
 def cmd_edit(args: argparse.Namespace) -> int:
     plans_dir = resolve_plans_dir(args.plans_dir)
     try:
-        _, _, plan_file = resolve_plan_ref(plans_dir, args.plan_ref)
+        date, slug, plan_file = resolve_plan_ref(plans_dir, args.plan_ref)
     except ValueError as e:
         return _error(str(e))
 
     editor = args.editor or os.environ.get("EDITOR") or "vi"
     cmd = shlex.split(editor) + [str(plan_file)]
     result = os.spawnvp(os.P_WAIT, cmd[0], cmd)
+    if int(result) == 0:
+        sync_plan_dir(plans_dir, date, slug)
     return int(result)
 
 
@@ -361,9 +368,99 @@ def cmd_serve(args: argparse.Namespace) -> int:
     return run_server(plans_dir, args.port, args.open_browser)
 
 
+def cmd_init(args: argparse.Namespace) -> int:
+    plans_dir = resolve_plans_dir(args.plans_dir)
+    plans_dir.mkdir(parents=True, exist_ok=True)
+    print(f"Initialized plans directory: {plans_dir}")
+    mirror_dir = resolve_mirror_dir(plans_dir, args.mirror_dir)
+    if mirror_dir is not None:
+        mirror_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Mirror directory: {mirror_dir}")
+    return 0
+
+
+def _default_cursor_plan_prompt(plan_file: Path, title: str) -> str:
+    return (
+        f"Create and save a complete implementation plan in {plan_file}.\n"
+        f"Plan title: {title}\n\n"
+        "Requirements:\n"
+        "- Fill the entire plan with concrete details (no TODO placeholders)\n"
+        "- Include three mermaid diagrams: system overview, request/data flow, work breakdown\n"
+        "- Include clear backlog checkboxes and acceptance criteria\n"
+        "- Save directly to disk in that file path\n"
+    )
+
+
+def _open_in_cursor_fallback(path: Path) -> tuple[bool, str]:
+    cursor_bin = shutil.which("cursor")
+    if cursor_bin:
+        subprocess.Popen([cursor_bin, str(path)])
+        return True, f"Opened {path} in Cursor"
+    try:
+        subprocess.Popen(["open", "-a", "Cursor", str(path)])
+        return True, f"Opened {path} in Cursor"
+    except Exception as exc:
+        return False, f"Could not launch Cursor: {exc}"
+
+
+def cmd_new(args: argparse.Namespace) -> int:
+    plans_dir = resolve_plans_dir(args.plans_dir)
+    plans_dir.mkdir(parents=True, exist_ok=True)
+
+    date, slug, plan_file = create_plan(plans_dir, args.title)
+    sync_plan_dir(plans_dir, date, slug, resolve_mirror_dir(plans_dir, args.mirror_dir))
+
+    plan_ref = f"{date}/{slug}"
+    print(f"Created plan: {plan_ref}")
+    print(f"Path: {plan_file}")
+
+    if args.no_cursor:
+        return 0
+
+    prompt = _default_cursor_plan_prompt(plan_file, args.title)
+    agent_bin = shutil.which("cursor-agent")
+    if agent_bin:
+        cmd = [agent_bin, "-m", args.model, prompt]
+        if args.cwd:
+            return subprocess.run(cmd, cwd=args.cwd, check=False).returncode
+        return subprocess.run(cmd, check=False).returncode
+
+    ok, msg = _open_in_cursor_fallback(plan_file)
+    print(msg)
+    if not ok:
+        return 1
+    print("cursor-agent not found; opened file in Cursor for manual generation.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Plan Viewer CLI")
-    subparsers = parser.add_subparsers(dest="command", required=True)
+    subparsers = parser.add_subparsers(dest="command", required=False)
+
+    init_cmd = subparsers.add_parser("init", help="Initialize local plans directory")
+    init_cmd.add_argument("--plans-dir", help="Plans root directory")
+    init_cmd.add_argument("--mirror-dir", help="Mirror plans directory (default: ~/agent-plans/plans)")
+    init_cmd.set_defaults(func=cmd_init)
+
+    new_cmd = subparsers.add_parser("new", help="Create a new plan and launch Cursor Opus flow")
+    new_cmd.add_argument("title", help="Plan title")
+    new_cmd.add_argument("--plans-dir", help="Plans root directory")
+    new_cmd.add_argument("--mirror-dir", help="Mirror plans directory (default: ~/agent-plans/plans)")
+    new_cmd.add_argument(
+        "--model",
+        default=os.environ.get("PLAN_VIEWER_CURSOR_MODEL", "opus"),
+        help="Cursor model passed to cursor-agent -m (default: opus)",
+    )
+    new_cmd.add_argument(
+        "--cwd",
+        help="Working directory for cursor-agent (defaults to current directory)",
+    )
+    new_cmd.add_argument(
+        "--no-cursor",
+        action="store_true",
+        help="Only create plan files, do not launch Cursor",
+    )
+    new_cmd.set_defaults(func=cmd_new)
 
     serve = subparsers.add_parser("serve", help="Run browser server")
     serve.add_argument("--plans-dir", help="Plans root directory")
@@ -408,8 +505,15 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = sys.argv[1:]
+    if not argv:
+        argv = ["dashboard"]
     parser = build_parser()
     args = parser.parse_args(argv)
+    if not hasattr(args, "func"):
+        parser.print_help()
+        return 1
     return int(args.func(args))
 
 

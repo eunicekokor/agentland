@@ -6,11 +6,14 @@ from __future__ import annotations
 import mimetypes
 import os
 import re
+import shutil
 import subprocess
 from datetime import datetime, timezone
 from pathlib import Path
 
-DEFAULT_PLANS_DIR = Path.home() / "agent-plans" / "plans"
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_PLANS_DIR = REPO_ROOT / "plans"
+DEFAULT_MIRROR_DIR = Path.home() / "agent-plans" / "plans"
 SAFE_EXTENSIONS = {
     ".svg",
     ".png",
@@ -30,13 +33,49 @@ _CHECKBOX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+\.\s+)\[([ xX])\]", re.MULTILINE)
 
 
 def resolve_plans_dir(cli_plans_dir: str | None = None) -> Path:
-    """Resolve plans directory with precedence: CLI > ENV > default."""
+    """Resolve plans directory with precedence: CLI > ENV > local-app default."""
     if cli_plans_dir:
         return Path(cli_plans_dir).expanduser()
     env_value = os.environ.get("PLAN_VIEWER_PLANS_DIR")
     if env_value:
         return Path(env_value).expanduser()
     return DEFAULT_PLANS_DIR
+
+
+def resolve_mirror_dir(
+    plans_dir: Path,
+    cli_mirror_dir: str | None = None,
+) -> Path | None:
+    """Resolve optional mirror directory for auto-sync."""
+    if cli_mirror_dir:
+        candidate = Path(cli_mirror_dir).expanduser()
+    else:
+        env_value = os.environ.get("PLAN_VIEWER_MIRROR_DIR")
+        candidate = Path(env_value).expanduser() if env_value else DEFAULT_MIRROR_DIR
+
+    if candidate.resolve() == plans_dir.resolve():
+        return None
+    return candidate
+
+
+def sync_plan_dir(
+    plans_dir: Path,
+    date: str,
+    slug: str,
+    mirror_dir: Path | None = None,
+) -> None:
+    """Mirror one plan directory to mirror root."""
+    mirror = mirror_dir or resolve_mirror_dir(plans_dir)
+    if mirror is None:
+        return
+
+    src = plans_dir / date / slug
+    if not src.exists():
+        return
+
+    dest = mirror / date / slug
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(src, dest, dirs_exist_ok=True)
 
 
 def extract_title(plan_file: Path, content: str) -> str:
@@ -147,6 +186,7 @@ def write_plan(plans_dir: Path, date: str, slug: str, content: str) -> dict:
         return {"ok": False, "error": "Plan not found"}
     try:
         plan_file.write_text(content, encoding="utf-8")
+        sync_plan_dir(plans_dir, date, slug)
         return {"ok": True}
     except OSError as e:
         return {"ok": False, "error": str(e)}
@@ -267,3 +307,65 @@ def resolve_plan_ref(plans_dir: Path, plan_ref: str) -> tuple[str, str, Path]:
         raise ValueError(f"Ambiguous slug '{plan_ref}'. Use one of: {candidates}")
 
     return matches[0]
+
+
+def slugify(text: str) -> str:
+    s = text.lower().strip()
+    s = re.sub(r"[^\w\s-]", "", s)
+    s = re.sub(r"[\s_]+", "-", s)
+    return re.sub(r"-+", "-", s).strip("-")[:60]
+
+
+def create_plan(
+    plans_dir: Path,
+    title: str,
+    now: datetime | None = None,
+) -> tuple[str, str, Path]:
+    """Create new timestamped plan directory and starter plan.md."""
+    ts = now or datetime.now()
+    date = ts.strftime("%Y-%m-%d")
+    hhmm = ts.strftime("%H-%M")
+    slug_part = slugify(title)
+    slug = f"{date}_{hhmm}_{slug_part}"
+
+    plan_dir = plans_dir / date / slug
+    plan_dir.mkdir(parents=True, exist_ok=True)
+    (plan_dir / "docs").mkdir(exist_ok=True)
+    plan_file = plan_dir / "plan.md"
+
+    if not plan_file.exists():
+        plan_file.write_text(
+            (
+                f"# {title}\n\n"
+                "## Goal / North Star\n\n"
+                "- TODO\n\n"
+                "## Non-Goals\n\n"
+                "- TODO\n\n"
+                "## Architecture / Visual Overview\n\n"
+                "### System Overview\n\n"
+                "```mermaid\n"
+                "flowchart TD\n"
+                "    A[TODO] --> B[TODO]\n"
+                "```\n\n"
+                "### Data / Request Flow\n\n"
+                "```mermaid\n"
+                "sequenceDiagram\n"
+                "    participant User\n"
+                "    participant System\n"
+                "    User->>System: TODO\n"
+                "    System-->>User: TODO\n"
+                "```\n\n"
+                "### Work Breakdown\n\n"
+                "```mermaid\n"
+                "flowchart LR\n"
+                "    T1[Task 1] --> T2[Task 2]\n"
+                "    T2 --> T3[Task 3]\n"
+                "```\n\n"
+                "## Work Items / Living Backlog\n\n"
+                "- [ ] Define scope\n"
+                "- [ ] Draft implementation plan\n"
+            ),
+            encoding="utf-8",
+        )
+
+    return date, slug, plan_file

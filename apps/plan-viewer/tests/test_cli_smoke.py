@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+import os
 
 
 class CliSmokeTests(unittest.TestCase):
@@ -56,6 +57,47 @@ class CliSmokeTests(unittest.TestCase):
         res = self._run("show", "dup", "--plans-dir", str(self.plans_dir))
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("Ambiguous slug", res.stderr)
+
+    def test_init_command_creates_directory(self) -> None:
+        target = self.plans_dir / "new-plans-root"
+        self.assertFalse(target.exists())
+        res = self._run("init", "--plans-dir", str(target))
+        self.assertEqual(res.returncode, 0)
+        self.assertTrue(target.exists())
+        self.assertIn("Initialized plans directory", res.stdout)
+
+    def test_no_args_defaults_to_dashboard(self) -> None:
+        res = self._run()
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("No plans found", res.stdout)
+
+    def test_new_creates_plan_and_mirror_without_cursor(self) -> None:
+        mirror = self.plans_dir / "mirror"
+        env = os.environ.copy()
+        env["PLAN_VIEWER_MIRROR_DIR"] = str(mirror)
+        res = subprocess.run(
+            [
+                sys.executable,
+                str(self.cli),
+                "new",
+                "My CLI Plan",
+                "--plans-dir",
+                str(self.plans_dir),
+                "--no-cursor",
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+            env=env,
+        )
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Created plan:", res.stdout)
+
+        plans = list((self.plans_dir).glob("*/**/plan.md"))
+        self.assertTrue(plans)
+
+        mirrored = list(mirror.glob("*/**/plan.md"))
+        self.assertTrue(mirrored)
 
 
 if __name__ == "__main__":
