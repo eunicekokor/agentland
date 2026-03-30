@@ -34,6 +34,7 @@ python3 apps/plan-viewer/plan_viewer.py show 2026-03-04/2026-03-04_12-57_plan-vi
 - `serve [--port] [--plans-dir] [--open-browser|--no-open-browser]`
 - `list [--plans-dir] [--sources local,agent,cursor,claude] [--date YYYY-MM-DD] [--limit N] [--json]`
 - `show <plan_ref> [--plans-dir] [--sources ...]`
+- `share <plan_ref> [--plans-dir] [--sources ...] [--port 11444] [--open]`
 - `dashboard [--plans-dir] [--sources ...] [--date YYYY-MM-DD] [--limit N] [--watch SECONDS]`
 - `open <plan_ref> --agent {cursor,claude,codex} [--plans-dir] [--sources ...]`
 - `edit <plan_ref> [--plans-dir] [--sources ...] [--editor CMD]`
@@ -92,6 +93,7 @@ Defaults:
 - **Read plans** in web UI and CLI
 - **Edit plans** in web UI and terminal editor
 - **Track lineage** with merge links and parent/child spin-outs
+- **Generate downloadable links** for quick sharing in PRs/Slack
 - **Render mermaid diagrams** in browser
 - **View attached docs** from each plan's `docs/` folder
 - **Open plans in agents**:
@@ -108,12 +110,14 @@ All endpoints are local-only (`127.0.0.1`).
 | `GET` | `/` | Serves the UI |
 | `GET` | `/api/plans` | Lists plans with metadata (`status`, `task_total`, `task_done` included) |
 | `GET` | `/api/plan/:plan_id` | Returns plan markdown + metadata for any source |
+| `GET` | `/api/plan/:plan_id/download` | Downloads plan markdown as an attachment |
 | `PUT` | `/api/plan/:plan_id` | Saves plan markdown (imports to local first when source is external) |
 | `POST` | `/api/plan/:plan_id/import` | Imports external-source plan into local writable plans |
 | `GET` | `/api/lineage/:plan_id` | Returns related plans and lineage rollup |
 | `POST` | `/api/lineage/merge` | Links two plans as merged-with (non-destructive) |
 | `POST` | `/api/lineage/spinout` | Creates a child plan and parent/child links |
 | `GET` | `/api/plans/:date/:slug` | Returns plan markdown |
+| `GET` | `/api/plans/:date/:slug/download` | Downloads legacy structured plan markdown |
 | `PUT` | `/api/plans/:date/:slug` | Saves plan markdown |
 | `GET` | `/api/plans/:date/:slug/docs` | Lists docs files |
 | `GET` | `/api/plans/:date/:slug/docs/:file` | Serves a docs file |
@@ -121,6 +125,8 @@ All endpoints are local-only (`127.0.0.1`).
 | `GET` | `/api/plans/:date/:slug/files/:file` | Serves `.excalidraw` file (CORS enabled) |
 | `POST` | `/api/new` | Creates a new timestamped plan (optionally launches Cursor agent) |
 | `POST` | `/api/open` | Opens plan in Cursor/Claude/Codex |
+
+`share` command outputs localhost download URLs for convenience; these links are intended for local access where the plan-viewer server is reachable.
 
 ## Requirements
 

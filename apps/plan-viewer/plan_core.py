@@ -41,6 +41,7 @@ SAFE_EXTENSIONS = {
 }
 
 _CHECKBOX_RE = re.compile(r"^\s*(?:[-*+]\s+|\d+\.\s+)\[([ xX])\]", re.MULTILINE)
+_SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def resolve_plans_dir(cli_plans_dir: str | None = None) -> Path:
@@ -435,6 +436,37 @@ def read_plan_by_id(plans_dir: Path, plan_id: str, sources: list[str] | None = N
     if not p:
         return None
     return _read_plan_content(Path(p["path"]))
+
+
+def derive_download_filename(slug: str | None, fallback: str = "plan") -> str:
+    base = (slug or "").strip()
+    if not base:
+        base = fallback
+    base = _SAFE_FILENAME_RE.sub("-", base).strip(".-_") or fallback
+    return f"{base}.md"
+
+
+def plan_download_by_id(
+    plans_dir: Path,
+    plan_id: str,
+    sources: list[str] | None = None,
+) -> tuple[bytes, str] | None:
+    plan = get_plan_by_id(plans_dir, plan_id, sources=sources)
+    if not plan:
+        return None
+    content = read_plan_by_id(plans_dir, plan_id, sources=sources)
+    if content is None:
+        return None
+    filename = derive_download_filename(str(plan.get("slug", "")))
+    return content.encode("utf-8"), filename
+
+
+def plan_download_legacy(plans_dir: Path, date: str, slug: str) -> tuple[bytes, str] | None:
+    content = read_plan(plans_dir, date, slug)
+    if content is None:
+        return None
+    filename = derive_download_filename(slug)
+    return content.encode("utf-8"), filename
 
 
 def _extract_parent_summary(content: str, max_lines: int = 20) -> str:

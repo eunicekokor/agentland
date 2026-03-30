@@ -33,6 +33,8 @@ from plan_core import (
     open_with_agent,
     read_plan,
     read_plan_by_id,
+    plan_download_by_id,
+    plan_download_legacy,
     resolve_mirror_dir,
     resolve_plan_ref,
     resolve_plans_dir,
@@ -285,6 +287,42 @@ def cmd_dashboard(args: argparse.Namespace) -> int:
         return 0
 
 
+def _plan_share_url(
+    plans_dir: Path,
+    plan_ref: str,
+    sources: list[str],
+    port: int,
+) -> str:
+    if plan_ref.startswith("pv_"):
+        plan = get_plan_by_id(plans_dir, plan_ref, sources=sources)
+        if not plan:
+            raise ValueError(f"Plan not found: {plan_ref}")
+        return f"http://localhost:{port}/api/plan/{plan_ref}/download?sources={','.join(sources)}"
+
+    date, slug, _ = resolve_plan_ref(plans_dir, plan_ref, sources=sources)
+    for plan in scan_plans(plans_dir, sources=sources, include_lineage=False):
+        if plan.get("source") in {SOURCE_LOCAL, "agent"} and plan.get("date") == date and plan.get("slug") == slug:
+            plan_id = str(plan.get("plan_id", ""))
+            if plan_id.startswith("pv_"):
+                return f"http://localhost:{port}/api/plan/{plan_id}/download?sources={','.join(sources)}"
+
+    return f"http://localhost:{port}/api/plans/{date}/{slug}/download"
+
+
+def cmd_share(args: argparse.Namespace) -> int:
+    plans_dir = resolve_plans_dir(args.plans_dir)
+    sources = _resolve_sources_arg(args.sources)
+    try:
+        share_url = _plan_share_url(plans_dir, args.plan_ref, sources, args.port)
+    except ValueError as e:
+        return _error(str(e))
+
+    print(share_url)
+    if args.open:
+        webbrowser.open(share_url)
+    return 0
+
+
 class PlanViewerHandler(http.server.BaseHTTPRequestHandler):
     plans_dir: Path = resolve_plans_dir(None)
 
@@ -319,6 +357,14 @@ class PlanViewerHandler(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-Type", mime_type)
         self.send_header("Content-Length", str(len(content)))
         self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(content)
+
+    def _download_response(self, content: bytes, filename: str) -> None:
+        self.send_response(200)
+        self.send_header("Content-Type", "text/markdown; charset=utf-8")
+        self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.send_header("Content-Length", str(len(content)))
         self.end_headers()
         self.wfile.write(content)
 
@@ -358,6 +404,16 @@ class PlanViewerHandler(http.server.BaseHTTPRequestHandler):
                 self._json_response({"content": content, "plan": plan})
             return
 
+        m = re.match(r"^/api/plan/(pv_[^/]+)/download$", path)
+        if m:
+            sources = self._query_sources(parsed)
+            result = plan_download_by_id(self.plans_dir, m.group(1), sources=sources)
+            if result is None:
+                self.send_error(404)
+            else:
+                self._download_response(*result)
+            return
+
         m = re.match(r"^/api/lineage/(pv_[^/]+)$", path)
         if m:
             plan_id = m.group(1)
@@ -373,6 +429,15 @@ class PlanViewerHandler(http.server.BaseHTTPRequestHandler):
                 self._json_response({"error": "Not found"}, 404)
             else:
                 self._json_response({"content": content})
+            return
+
+        m = re.match(r"^/api/plans/([^/]+)/([^/]+)/download$", path)
+        if m:
+            result = plan_download_legacy(self.plans_dir, m.group(1), m.group(2))
+            if result is None:
+                self.send_error(404)
+            else:
+                self._download_response(*result)
             return
 
         m = re.match(r"^/api/plans/([^/]+)/([^/]+)/docs$", path)
@@ -755,6 +820,14 @@ def build_parser() -> argparse.ArgumentParser:
     show.add_argument("--plans-dir", help="Plans root directory")
     show.add_argument("--sources", help=f"Comma-separated sources (default: {','.join(ALL_SOURCES)})")
     show.set_defaults(func=cmd_show)
+
+    share = subparsers.add_parser("share", help="Print downloadable local URL for a plan")
+    share.add_argument("plan_ref", help="plan_id, YYYY-MM-DD/slug, or unique slug")
+    share.add_argument("--plans-dir", help="Plans root directory")
+    share.add_argument("--sources", help=f"Comma-separated sources (default: {','.join(ALL_SOURCES)})")
+    share.add_argument("--port", type=int, default=11444, help="Port used in generated localhost URL")
+    share.add_argument("--open", action="store_true", help="Open the generated URL in the default browser")
+    share.set_defaults(func=cmd_share)
 
     dashboard = subparsers.add_parser("dashboard", help="Arc-style dashboard")
     dashboard.add_argument("--plans-dir", help="Plans root directory")

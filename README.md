@@ -31,7 +31,7 @@ This clones the repo into `~/agent-plans/`. All tools expect this path. Plan dat
 ### 2. Run the Plan Viewer
 
 ```bash
-python3 ~/agent-plans/apps/plan-viewer/server.py
+python3 apps/plan-viewer/server.py
 ```
 
 Opens `http://localhost:8787`. Python 3.10+ required, zero pip dependencies.

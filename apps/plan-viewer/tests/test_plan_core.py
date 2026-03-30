@@ -190,6 +190,11 @@ class PlanCoreTests(unittest.TestCase):
             else:
                 os.environ["PLAN_VIEWER_MIRROR_DIR"] = prev_mirror
 
+    def test_download_filename_derivation(self) -> None:
+        self.assertEqual(plan_core.derive_download_filename("2026-03-30_09-00_my-plan"), "2026-03-30_09-00_my-plan.md")
+        self.assertEqual(plan_core.derive_download_filename(" weird title / v2 "), "weird-title-v2.md")
+        self.assertEqual(plan_core.derive_download_filename(""), "plan.md")
+
 
 if __name__ == "__main__":
     unittest.main()
