@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import tempfile
@@ -23,11 +24,17 @@ class CliSmokeTests(unittest.TestCase):
         plan_path.write_text(content, encoding="utf-8")
 
     def _run(self, *args: str) -> subprocess.CompletedProcess[str]:
+        env = os.environ.copy()
+        env["PLAN_VIEWER_PLANS_DIR"] = str(self.plans_dir)
+        env["PLAN_VIEWER_SOURCES"] = "local"
+        env["PLAN_VIEWER_MIRROR_DIR"] = str(self.plans_dir)
+        env["PLAN_VIEWER_LINEAGE_STORE"] = str(self.plans_dir / ".lineage.json")
         return subprocess.run(
             [sys.executable, str(self.cli), *args],
             text=True,
             capture_output=True,
             check=False,
+            env=env,
         )
 
     def test_list_show_dashboard_smoke(self) -> None:
@@ -43,7 +50,7 @@ class CliSmokeTests(unittest.TestCase):
 
         dash_res = self._run("dashboard", "--plans-dir", str(self.plans_dir), "--watch", "0")
         self.assertEqual(dash_res.returncode, 0)
-        self.assertIn("Slug", dash_res.stdout)
+        self.assertIn("Plan ID", dash_res.stdout)
 
     def test_open_error_path(self) -> None:
         res = self._run("open", "missing", "--plans-dir", str(self.plans_dir), "--agent", "codex")
@@ -75,6 +82,9 @@ class CliSmokeTests(unittest.TestCase):
         mirror = self.plans_dir / "mirror"
         env = os.environ.copy()
         env["PLAN_VIEWER_MIRROR_DIR"] = str(mirror)
+        env["PLAN_VIEWER_PLANS_DIR"] = str(self.plans_dir)
+        env["PLAN_VIEWER_SOURCES"] = "local"
+        env["PLAN_VIEWER_LINEAGE_STORE"] = str(self.plans_dir / ".lineage.json")
         res = subprocess.run(
             [
                 sys.executable,
@@ -98,6 +108,42 @@ class CliSmokeTests(unittest.TestCase):
 
         mirrored = list(mirror.glob("*/**/plan.md"))
         self.assertTrue(mirrored)
+
+    def test_merge_spinout_related_commands(self) -> None:
+        self._write_plan("2026-03-01", "p1", "# One\n- [ ] a\n")
+        self._write_plan("2026-03-02", "p2", "# Two\n- [x] b\n")
+
+        list_res = self._run("list", "--plans-dir", str(self.plans_dir), "--json")
+        self.assertEqual(list_res.returncode, 0)
+        plans = json.loads(list_res.stdout)
+        ids = [p["plan_id"] for p in plans[:2]]
+        self.assertEqual(len(ids), 2)
+
+        merge_res = self._run(
+            "merge",
+            ids[0],
+            "--with",
+            ids[1],
+            "--plans-dir",
+            str(self.plans_dir),
+        )
+        self.assertEqual(merge_res.returncode, 0)
+        self.assertIn("\"ok\": true", merge_res.stdout.lower())
+
+        spin_res = self._run(
+            "spinout",
+            ids[0],
+            "--title",
+            "Child Plan",
+            "--plans-dir",
+            str(self.plans_dir),
+        )
+        self.assertEqual(spin_res.returncode, 0)
+        self.assertIn("\"child\"", spin_res.stdout)
+
+        rel_res = self._run("related", ids[0], "--plans-dir", str(self.plans_dir))
+        self.assertEqual(rel_res.returncode, 0)
+        self.assertIn("\"group_ids\"", rel_res.stdout)
 
 
 if __name__ == "__main__":

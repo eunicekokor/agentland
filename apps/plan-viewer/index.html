@@ -125,6 +125,7 @@
     .agent-btn.cursor-btn .dot { background: #00b4d8; }
     .agent-btn.claude-btn .dot { background: #d4a574; }
     .agent-btn.codex-btn .dot { background: #10b981; }
+    .agent-btn.new-btn .dot { background: #2563eb; }
 
     .main {
       display: flex;
@@ -139,6 +140,48 @@
       background: var(--bg-sidebar);
       overflow-y: auto;
       padding: 16px;
+    }
+
+    .source-filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .source-chip {
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--bg-card);
+      color: var(--text-muted);
+      font-size: 11px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .source-chip.active {
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .source-badge {
+      font-size: 10px;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 1px 6px;
+      background: var(--bg-card);
+      text-transform: lowercase;
+    }
+
+    .lineage-toggle {
+      margin-bottom: 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
     .date-group { margin-bottom: 20px; }
@@ -203,6 +246,20 @@
       padding: 1px 6px;
       border-radius: 4px;
     }
+
+    .plan-status {
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 999px;
+      text-transform: lowercase;
+      border: 1px solid var(--border);
+      background: var(--bg-card);
+    }
+
+    .plan-status.active { color: #16a34a; border-color: #16a34a; }
+    .plan-status.planned { color: #2563eb; border-color: #2563eb; }
+    .plan-status.complete { color: #059669; border-color: #059669; }
+    .plan-status.unscored { color: var(--text-muted); border-color: var(--border); }
 
     .content {
       flex: 1;
@@ -337,6 +394,18 @@
       border-top: 1px solid var(--border);
     }
 
+    .related-section {
+      max-width: 780px;
+      margin-top: 32px;
+      padding-top: 16px;
+      border-top: 1px solid var(--border);
+    }
+
+    .related-section h3 {
+      font-size: 16px;
+      margin-bottom: 10px;
+    }
+
     .docs-section h2 {
       font-size: 20px;
       font-weight: 600;
@@ -391,6 +460,65 @@
       font-size: 11px;
       color: var(--text-muted);
       margin-top: 4px;
+    }
+
+    /* Excalidraw section */
+    .excalidraw-section {
+      max-width: 780px;
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    .excalidraw-section h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .excalidraw-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .excalidraw-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+    }
+
+    .excalidraw-name {
+      font-size: 14px;
+      font-weight: 500;
+      flex: 1;
+    }
+
+    .excalidraw-actions {
+      display: flex;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .excalidraw-actions a {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--bg-card);
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 500;
+      text-decoration: none;
+      transition: all 0.15s ease;
+    }
+
+    .excalidraw-actions a:hover {
+      background: var(--bg-card-hover);
+      border-color: var(--accent);
     }
 
     .toast {
@@ -475,6 +603,9 @@
   <header>
     <h1>Agent Plans</h1>
     <div class="agent-buttons">
+      <button class="agent-btn new-btn" onclick="createNewPlan()">
+        <span class="dot"></span> New Plan
+      </button>
       <button class="agent-btn cursor-btn" disabled onclick="openWith('cursor')">
         <span class="dot"></span> Open in Cursor
       </button>
@@ -488,7 +619,14 @@
   </header>
   <div class="main">
     <div class="sidebar" id="sidebar">
-      <div class="empty-state">Loading...</div>
+      <div class="source-filters" id="source-filters"></div>
+      <label class="lineage-toggle">
+        <input type="checkbox" id="lineage-only-toggle" onchange="toggleLineageOnly(this.checked)" />
+        Show lineage group only
+      </label>
+      <div id="sidebar-list">
+        <div class="empty-state">Loading...</div>
+      </div>
     </div>
     <div class="content" id="content">
       <div class="empty-state">Select a plan to view</div>
@@ -499,6 +637,8 @@
   <script>
     let selectedPlan = null;
     let editMode = false;
+    let enabledSources = ["local", "agent", "cursor", "claude"];
+    let lineageOnly = false;
 
     function escapeHtml(str) {
       const div = document.createElement("div");
@@ -556,6 +696,11 @@
       return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     }
 
+    function formatStatusLabel(status) {
+      if (!status) return "unscored";
+      return String(status).toLowerCase();
+    }
+
     function showToast(msg) {
       const el = document.getElementById("toast");
       el.textContent = msg;
@@ -564,7 +709,32 @@
     }
 
     function setButtonsEnabled(enabled) {
-      document.querySelectorAll(".agent-btn").forEach(btn => btn.disabled = !enabled);
+      document.querySelectorAll(".agent-btn:not(.new-btn)").forEach(btn => btn.disabled = !enabled);
+    }
+
+    function renderSourceFilters() {
+      const wrap = document.getElementById("source-filters");
+      const sources = ["local", "agent", "cursor", "claude"];
+      wrap.innerHTML = sources.map(src => {
+        const active = enabledSources.includes(src);
+        return `<button class="source-chip ${active ? "active" : ""}" onclick="toggleSource('${src}')">${src}</button>`;
+      }).join("");
+    }
+
+    function toggleSource(source) {
+      if (enabledSources.includes(source)) {
+        if (enabledSources.length === 1) return;
+        enabledSources = enabledSources.filter(s => s !== source);
+      } else {
+        enabledSources.push(source);
+      }
+      renderSourceFilters();
+      loadPlans(true);
+    }
+
+    function toggleLineageOnly(checked) {
+      lineageOnly = checked;
+      loadPlans(true);
     }
 
     function copyMarkdown() {
@@ -601,16 +771,17 @@
     function toggleEditMode() {
       editMode = !editMode;
       const p = window._lastRenderedPlan;
-      if (p) renderPlanContent(p.content, p.path, p.date, p.slug);
+      if (p) renderPlanContent(p.content, p.path, p.date, p.slug, p.plan_id, p.source);
     }
 
     async function savePlan() {
       if (!window._lastRenderedPlan) return;
-      const { date, slug, path } = window._lastRenderedPlan;
+      const { date, slug, path, plan_id, source } = window._lastRenderedPlan;
       const textarea = document.getElementById("plan-editor");
       if (!textarea) return;
       const newContent = textarea.value;
-      const resp = await fetch(`/api/plans/${date}/${slug}`, {
+      const endpoint = plan_id ? `/api/plan/${plan_id}` : `/api/plans/${date}/${slug}`;
+      const resp = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: newContent }),
@@ -618,7 +789,7 @@
       const data = await resp.json();
       if (data.ok) {
         editMode = false;
-        await renderPlanContent(newContent, path, date, slug);
+        await renderPlanContent(newContent, path, date, slug, plan_id, source);
         showToast("Plan saved");
       } else {
         showToast("Error saving: " + (data.error || "unknown error"));
@@ -642,17 +813,24 @@
         html += `<div class="date-group">`;
         html += `<div class="date-label">${formatDate(date)}</div>`;
         for (const p of items) {
-          const isActive = selectedPlan && selectedPlan.slug === p.slug;
+          const isActive = selectedPlan && selectedPlan.slug === p.slug && selectedPlan.date === p.date;
           const docsTag = p.docs && p.docs.length > 0
             ? `<span class="plan-card-docs">${p.docs.length} doc${p.docs.length > 1 ? "s" : ""}</span>`
             : "";
+          const status = formatStatusLabel(p.status);
+          const progress = (typeof p.task_done === "number" && typeof p.task_total === "number" && p.task_total > 0)
+            ? `${p.task_done}/${p.task_total}`
+            : "-";
           const startedTime = formatTime(p.time);
           const updatedTime = formatUpdated(p.updated);
-          html += `<div class="plan-card${isActive ? " active" : ""}" data-date="${p.date}" data-slug="${p.slug}" data-path="${p.path}" onclick="selectPlan(this)">`;
+          const sourceTag = `<span class="source-badge">${escapeHtml(p.source || "local")}</span>`;
+          const planId = escapeHtml(p.plan_id || "");
+          html += `<div class="plan-card${isActive ? " active" : ""}" data-plan-id="${planId}" data-source="${escapeHtml(p.source || "")}" data-date="${p.date}" data-slug="${p.slug}" data-path="${p.path}" onclick="selectPlan(this)">`;
           html += `<div class="plan-card-title">${escapeHtml(p.title)}</div>`;
           html += `<div class="plan-card-meta">`;
-          if (startedTime) html += `<div class="plan-card-meta-row"><span class="plan-card-time-label">Started</span><span class="plan-card-time">${startedTime}</span>${docsTag}</div>`;
+          if (startedTime) html += `<div class="plan-card-meta-row"><span class="plan-card-time-label">Started</span><span class="plan-card-time">${startedTime}</span>${sourceTag}${docsTag}</div>`;
           if (updatedTime) html += `<div class="plan-card-meta-row"><span class="plan-card-time-label">Updated</span><span class="plan-card-time">${updatedTime}</span></div>`;
+          html += `<div class="plan-card-meta-row"><span class="plan-card-time-label">Status</span><span class="plan-status ${status}">${escapeHtml(status)}</span><span class="plan-card-time">Tasks ${escapeHtml(progress)}</span></div>`;
           html += `</div>`;
           html += `</div>`;
         }
@@ -661,15 +839,49 @@
       return html;
     }
 
-    async function loadPlans() {
-      const resp = await fetch("/api/plans");
+    async function loadPlans(force = false) {
+      const query = new URLSearchParams();
+      query.set("sources", enabledSources.join(","));
+      if (lineageOnly && selectedPlan && selectedPlan.plan_id) {
+        query.set("lineage_for", selectedPlan.plan_id);
+      }
+      const resp = await fetch(`/api/plans?${query.toString()}`);
       const plans = await resp.json();
-      const hash = JSON.stringify(plans.map(p => p.slug + (p.docs||[]).length + (p.updated||"")));
+      const hash = JSON.stringify(
+        plans.map(
+          p =>
+            `${p.date}|${p.slug}|${(p.docs || []).length}|${p.updated || ""}|${p.status || ""}|${p.task_done || 0}|${p.task_total || 0}`
+        )
+      );
 
-      if (hash === lastPlanHash) return;
+      if (!force && hash === lastPlanHash) return;
       lastPlanHash = hash;
 
-      document.getElementById("sidebar").innerHTML = buildSidebarHtml(plans);
+      document.getElementById("sidebar-list").innerHTML = buildSidebarHtml(plans);
+    }
+
+    async function createNewPlan() {
+      const title = window.prompt("Plan title");
+      if (!title || !title.trim()) return;
+
+      const launchCursor = window.confirm("Launch Cursor agent for this new plan?");
+      const resp = await fetch("/api/new", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: title.trim(), launch_cursor: launchCursor, model: "opus" }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        showToast("Error creating plan: " + (data.error || "unknown error"));
+        return;
+      }
+
+      showToast(data.message || "Created plan");
+      await loadPlans(true);
+      const card = data.plan_id
+        ? document.querySelector(`.plan-card[data-plan-id="${data.plan_id}"]`)
+        : document.querySelector(`.plan-card[data-date="${data.date}"][data-slug="${data.slug}"]`);
+      if (card) await selectPlan(card);
     }
 
     window._lastRenderedPlan = null;
@@ -699,16 +911,24 @@
       const viewIcon = `<svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3C4 3 1 8 1 8s3 5 7 5 7-5 7-5-3-5-7-5zm0 8a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0-5a2 2 0 1 0 0 4 2 2 0 0 0 0-4z"/></svg>`;
       return `<div class="plan-toolbar">
         <button class="tool-btn" onclick="copyMarkdown()" title="Copy as markdown">${copyIcon} Copy Markdown</button>
+        <button class="tool-btn" onclick="mergeWithPlan()" title="Merge with another plan">Merge With...</button>
+        <button class="tool-btn" onclick="spinOutPlan()" title="Create child plan">Spin Out...</button>
         <button class="tool-btn${editMode ? " active" : ""}" onclick="toggleEditMode()" title="${editMode ? "Switch to view" : "Switch to edit"}">${editMode ? viewIcon + " View" : editIcon + " Edit"}</button>
         ${editMode ? `<button class="tool-btn" onclick="savePlan()" title="Save changes" style="margin-left:auto">Save</button>` : ""}
       </div>`;
     }
 
-    async function renderPlanContent(content, path, date, slug) {
-      window._lastRenderedPlan = { content, path, date, slug };
+    function renderRelatedHtml(view) {
+      if (!view || !view.group_plans) return "";
+      const links = view.group_plans.map(p => `<div><code>${escapeHtml(p.plan_id || "")}</code> · ${escapeHtml(p.title || "")} <span class="source-badge">${escapeHtml(p.source || "")}</span></div>`).join("");
+      return `<div class="related-section"><h3>Related Plans</h3>${links || "<div class='plan-card-time'>No related plans</div>"}</div>`;
+    }
+
+    async function renderPlanContent(content, path, date, slug, planId, source) {
+      window._lastRenderedPlan = { content, path, date, slug, plan_id: planId, source };
 
       const contentEl = document.getElementById("content");
-      const header = `<div class="plan-path">${escapeHtml(path)}</div>${planToolbarHtml()}`;
+      const header = `<div class="plan-path">${escapeHtml(path)}${source ? ` <span class="source-badge">${escapeHtml(source)}</span>` : ""}</div>${planToolbarHtml()}`;
 
       if (editMode) {
         contentEl.innerHTML = `${header}<textarea id="plan-editor" class="plan-editor">${escapeHtml(content)}</textarea>`;
@@ -717,9 +937,33 @@
 
       const rendered = marked.parse(content, { gfm: true, breaks: true });
 
+      let excalidrawHtml = "";
+      try {
+        const filesEndpoint = planId ? `/api/plan/${planId}/files?sources=${encodeURIComponent(enabledSources.join(","))}` : `/api/plans/${date}/${slug}/files`;
+        const filesResp = await fetch(filesEndpoint);
+        const excalidrawFiles = await filesResp.json();
+        if (excalidrawFiles.length > 0) {
+          const baseUrl = window.location.origin + `/api/plans/${date}/${slug}/files/`;
+          excalidrawHtml = `<div class="excalidraw-section"><h2>Excalidraw diagrams</h2><div class="excalidraw-list">`;
+          for (const f of excalidrawFiles) {
+            const fileUrl = baseUrl + encodeURIComponent(f.name);
+            const openUrl = "https://excalidraw.com/#url=" + encodeURIComponent(fileUrl);
+            excalidrawHtml += `<div class="excalidraw-item">
+              <span class="excalidraw-name">${escapeHtml(f.name)}</span>
+              <div class="excalidraw-actions">
+                <a href="${escapeHtml(openUrl)}" target="_blank" rel="noopener noreferrer">Open in Excalidraw</a>
+                <a href="${escapeHtml(fileUrl)}" download="${escapeHtml(f.name)}">Download</a>
+              </div>
+            </div>`;
+          }
+          excalidrawHtml += `</div></div>`;
+        }
+      } catch {}
+
       let docsHtml = "";
       try {
-        const docsResp = await fetch(`/api/plans/${date}/${slug}/docs`);
+        const docsEndpoint = planId ? `/api/plan/${planId}/docs?sources=${encodeURIComponent(enabledSources.join(","))}` : `/api/plans/${date}/${slug}/docs`;
+        const docsResp = await fetch(docsEndpoint);
         const docs = await docsResp.json();
         if (docs.length > 0) {
           docsHtml = `<div class="docs-section"><h2>Attached Documents</h2><div class="docs-grid">`;
@@ -737,7 +981,16 @@
         }
       } catch {}
 
-      contentEl.innerHTML = `${header}<div class="markdown-body">${rendered}</div>${docsHtml}`;
+      let relatedHtml = "";
+      if (planId) {
+        try {
+          const relResp = await fetch(`/api/lineage/${planId}?sources=${encodeURIComponent(enabledSources.join(","))}`);
+          const relData = await relResp.json();
+          relatedHtml = renderRelatedHtml(relData);
+        } catch {}
+      }
+
+      contentEl.innerHTML = `${header}<div class="markdown-body">${rendered}</div>${relatedHtml}${excalidrawHtml}${docsHtml}`;
       await renderMermaidBlocks();
     }
     window.renderPlanContent = renderPlanContent;
@@ -749,15 +1002,61 @@
       const date = el.dataset.date;
       const slug = el.dataset.slug;
       const path = el.dataset.path;
+      const planId = el.dataset.planId;
+      const source = el.dataset.source;
 
-      selectedPlan = { date, slug, path };
+      selectedPlan = { date, slug, path, plan_id: planId, source };
       editMode = false;
       setButtonsEnabled(true);
 
-      const resp = await fetch(`/api/plans/${date}/${slug}`);
+      const endpoint = planId
+        ? `/api/plan/${planId}?sources=${encodeURIComponent(enabledSources.join(","))}`
+        : `/api/plans/${date}/${slug}`;
+      const resp = await fetch(endpoint);
       const data = await resp.json();
+      await renderPlanContent(data.content, path, date, slug, planId, source);
+    }
 
-      await renderPlanContent(data.content, path, date, slug);
+    async function mergeWithPlan() {
+      if (!selectedPlan || !selectedPlan.plan_id) return;
+      const targetId = window.prompt("Merge with plan_id:");
+      if (!targetId || !targetId.trim()) return;
+      const resp = await fetch("/api/lineage/merge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ left_plan_id: selectedPlan.plan_id, right_plan_id: targetId.trim() }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        showToast("Merge failed: " + (data.error || "unknown error"));
+        return;
+      }
+      showToast("Plans linked");
+      await loadPlans(true);
+      const card = document.querySelector(`.plan-card[data-plan-id="${selectedPlan.plan_id}"]`);
+      if (card) await selectPlan(card);
+    }
+
+    async function spinOutPlan() {
+      if (!selectedPlan || !selectedPlan.plan_id) return;
+      const title = window.prompt("Child plan title:");
+      if (!title || !title.trim()) return;
+      const resp = await fetch("/api/lineage/spinout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ parent_plan_id: selectedPlan.plan_id, title: title.trim() }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) {
+        showToast("Spin out failed: " + (data.error || "unknown error"));
+        return;
+      }
+      showToast("Child plan created");
+      await loadPlans(true);
+      if (data.child && data.child.plan_id) {
+        const card = document.querySelector(`.plan-card[data-plan-id="${data.child.plan_id}"]`);
+        if (card) await selectPlan(card);
+      }
     }
 
     async function openWith(agent) {
@@ -771,6 +1070,7 @@
       showToast(data.message);
     }
 
+    renderSourceFilters();
     loadPlans();
     setInterval(loadPlans, POLL_INTERVAL_MS);
   </script>
